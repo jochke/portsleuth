@@ -20,6 +20,7 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         'ip_proto': 'tcp',
         'dst_port': sock[1]
     }
+    # Append JSON log with newline
     with open(LOG_PATH, 'a') as f:
         f.write(json.dumps(log) + '')
     writer.close()
@@ -39,8 +40,10 @@ class UDPProtocol(asyncio.DatagramProtocol):
             'ip_proto': 'udp',
             'dst_port': local[1]
         }
+        # Append JSON log with newline
         with open(LOG_PATH, 'a') as f:
             f.write(json.dumps(log) + '')
+        # Send a single null byte as dummy response
         self.transport.sendto(b'�', addr)
 
 async def main():
