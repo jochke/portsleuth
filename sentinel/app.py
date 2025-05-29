@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 import os
 import resource
+import errno
 
 LOG_PATH = '/var/log/portsleuth/sentinel.jsonl'
 SKIP_PORTS = {22}  # Example: skip SSH if desired
@@ -20,7 +21,8 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         'dst_port': sock[1]
     }
     with open(LOG_PATH, 'a') as f:
-        f.write(json.dumps(log) + '\n')
+        f.write(json.dumps(log) + '
+')
     writer.close()
     await writer.wait_closed()
 
@@ -39,8 +41,9 @@ class UDPProtocol(asyncio.DatagramProtocol):
             'dst_port': local[1]
         }
         with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(log) + '\n')
-        self.transport.sendto(b'\x00', addr)
+            f.write(json.dumps(log) + '
+')
+        self.transport.sendto(b'�', addr)
 
 async def main():
     # Optionally bump file descriptor limit
@@ -54,16 +57,30 @@ async def main():
     for port in PORT_RANGE:
         if port in SKIP_PORTS:
             continue
-        await asyncio.start_server(handle_tcp, '0.0.0.0', port)
+        try:
+            await asyncio.start_server(handle_tcp, '0.0.0.0', port)
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                # Port in use; skip binding
+                continue
+            else:
+                raise
 
     # UDP endpoints on selected ports
     for port in PORT_RANGE:
         if port in SKIP_PORTS:
             continue
-        await loop.create_datagram_endpoint(
-            UDPProtocol,
-            local_addr=('0.0.0.0', port)
-        )
+        try:
+            await loop.create_datagram_endpoint(
+                UDPProtocol,
+                local_addr=('0.0.0.0', port)
+            )
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                # Port in use; skip binding
+                continue
+            else:
+                raise
 
     # Block forever
     await asyncio.Event().wait()
