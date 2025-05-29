@@ -7,15 +7,15 @@ from datetime import datetime, timezone
 
 # Configuration
 LOG_PATH = '/var/log/portsleuth/sentinel.jsonl'
-SKIP_PORTS = {22}  # Ports to skip (e.g., SSH)
-PORT_RANGE = range(1, 1025)  # Listen on ports 1–1024
-FD_LIMIT = 5000  # Maximum file descriptors to request
+SKIP_PORTS = {22}               # Ports to skip (e.g., SSH)
+PORT_RANGE = range(1, 1025)     # Listen on ports 1–1024
+FD_LIMIT = 5000                # Max file descriptors to request
 
 async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     peer = writer.get_extra_info('peername')
     sock = writer.get_extra_info('sockname')
     ts = datetime.now(timezone.utc).replace(microsecond=0).isoformat() + 'Z'
-    log_record = {
+    record = {
         'ts_utc': ts,
         'src_ip': peer[0],
         'dst_ip': sock[0],
@@ -24,7 +24,7 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
     }
     # Append to JSONL log
     with open(LOG_PATH, 'a') as f:
-        f.write(json.dumps(log_record) + '
+        f.write(json.dumps(record) + '
 ')
     writer.close()
     await writer.wait_closed()
@@ -36,16 +36,15 @@ class UDPProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr):
         ts = datetime.now(timezone.utc).replace(microsecond=0).isoformat() + 'Z'
         local = self.transport.get_extra_info('sockname')
-        log_record = {
+        record = {
             'ts_utc': ts,
             'src_ip': addr[0],
             'dst_ip': local[0],
             'ip_proto': 'udp',
             'dst_port': local[1]
         }
-        # Append to JSONL log
         with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(log_record) + '
+            f.write(json.dumps(record) + '
 ')
         # Send dummy response
         self.transport.sendto(b'�', addr)
@@ -67,7 +66,6 @@ async def main():
             await asyncio.start_server(handle_tcp, '0.0.0.0', port)
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
-                # Port already in use, skip
                 continue
             raise
 
