@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import os
 
 LOG_PATH = '/var/log/portsleuth/sentinel.jsonl'
+SKIP_PORTS = {22}  # ports to skip binding
 
 async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     peer = writer.get_extra_info('peername')
@@ -47,15 +48,20 @@ async def main():
 
     # TCP servers
     for port in range(1, 65536):
+        if port in SKIP_PORTS:
+            continue
         await asyncio.start_server(handle_tcp, '0.0.0.0', port)
 
     # UDP endpoints
     for port in range(1, 65536):
+        if port in SKIP_PORTS:
+            continue
         await loop.create_datagram_endpoint(
             UDPProtocol,
             local_addr=('0.0.0.0', port),
             reuse_address=True
         )
+
 
     # Keep running
     await asyncio.Event().wait()
