@@ -1,28 +1,31 @@
 import asyncio
 import json
-from datetime import datetime, timezone
 import os
 import resource
 import errno
+from datetime import datetime, timezone
 
+# Configuration
 LOG_PATH = '/var/log/portsleuth/sentinel.jsonl'
-SKIP_PORTS = {22}  # Example: skip SSH if desired
-PORT_RANGE = range(1, 1025)  # only first 1024 ports
+SKIP_PORTS = {22}  # Ports to skip (e.g., SSH)
+PORT_RANGE = range(1, 1025)  # Listen on ports 1–1024
+FD_LIMIT = 5000  # Maximum file descriptors to request
 
 async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     peer = writer.get_extra_info('peername')
     sock = writer.get_extra_info('sockname')
     ts = datetime.now(timezone.utc).replace(microsecond=0).isoformat() + 'Z'
-    log = {
+    log_record = {
         'ts_utc': ts,
         'src_ip': peer[0],
         'dst_ip': sock[0],
         'ip_proto': 'tcp',
         'dst_port': sock[1]
     }
-    # Append JSON log with newline
+    # Append to JSONL log
     with open(LOG_PATH, 'a') as f:
-        f.write(json.dumps(log) + '')
+        f.write(json.dumps(log_record) + '
+')
     writer.close()
     await writer.wait_closed()
 
@@ -30,31 +33,33 @@ class UDPProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport):
         self.transport = transport
 
-    def datagram_received(self, data, addr):
+    def datagram_received(self, data: bytes, addr):
         ts = datetime.now(timezone.utc).replace(microsecond=0).isoformat() + 'Z'
         local = self.transport.get_extra_info('sockname')
-        log = {
+        log_record = {
             'ts_utc': ts,
             'src_ip': addr[0],
             'dst_ip': local[0],
             'ip_proto': 'udp',
             'dst_port': local[1]
         }
-        # Append JSON log with newline
+        # Append to JSONL log
         with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(log) + '')
-        # Send a single null byte as dummy response
+            f.write(json.dumps(log_record) + '
+')
+        # Send dummy response
         self.transport.sendto(b'�', addr)
 
 async def main():
-    # Optionally bump file descriptor limit
+    # Increase file descriptor limit
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (min(hard, 5000), hard))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (min(hard, FD_LIMIT), hard))
 
+    # Ensure log directory exists
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
     loop = asyncio.get_running_loop()
 
-    # TCP listeners on selected ports
+    # Start TCP servers
     for port in PORT_RANGE:
         if port in SKIP_PORTS:
             continue
@@ -62,11 +67,11 @@ async def main():
             await asyncio.start_server(handle_tcp, '0.0.0.0', port)
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
+                # Port already in use, skip
                 continue
-            else:
-                raise
+            raise
 
-    # UDP endpoints on selected ports
+    # Start UDP endpoints
     for port in PORT_RANGE:
         if port in SKIP_PORTS:
             continue
@@ -78,10 +83,9 @@ async def main():
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
                 continue
-            else:
-                raise
+            raise
 
-    # Block forever
+    # Run indefinitely
     await asyncio.Event().wait()
 
 if __name__ == '__main__':
