@@ -21,8 +21,7 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         'dst_port': sock[1]
     }
     with open(LOG_PATH, 'a') as f:
-        f.write(json.dumps(log) + '
-')
+        f.write(json.dumps(log) + '')
     writer.close()
     await writer.wait_closed()
 
@@ -41,8 +40,7 @@ class UDPProtocol(asyncio.DatagramProtocol):
             'dst_port': local[1]
         }
         with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(log) + '
-')
+            f.write(json.dumps(log) + '')
         self.transport.sendto(b'�', addr)
 
 async def main():
