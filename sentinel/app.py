@@ -62,7 +62,6 @@ async def main():
             await asyncio.start_server(handle_tcp, '0.0.0.0', port)
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
-                # Port in use; skip binding
                 continue
             else:
                 raise
@@ -78,7 +77,6 @@ async def main():
             )
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
-                # Port in use; skip binding
                 continue
             else:
                 raise
