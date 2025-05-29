@@ -24,8 +24,7 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
     }
     # Append JSONL log with newline
     with open(LOG_PATH, 'a') as f:
-        f.write(json.dumps(record) + '
-')
+        f.write(json.dumps(record) + '')
     writer.close()
     await writer.wait_closed()
 
@@ -45,8 +44,7 @@ class UDPProtocol(asyncio.DatagramProtocol):
         }
         # Append JSONL log with newline
         with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(record) + '
-')
+            f.write(json.dumps(record) + '')
         # Send dummy null-byte response
         self.transport.sendto(b'�', addr)
 
