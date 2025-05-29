@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 LOG_PATH = '/var/log/portsleuth/sentinel.jsonl'
 SKIP_PORTS = {22}               # Ports to skip (e.g., SSH)
 PORT_RANGE = range(1, 1025)     # Listen on ports 1–1024
-FD_LIMIT = 5000                # Max file descriptors to request
+FD_LIMIT = 5000                 # Max file descriptors to request
 
 async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     peer = writer.get_extra_info('peername')
@@ -22,7 +22,7 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
         'ip_proto': 'tcp',
         'dst_port': sock[1]
     }
-    # Append to JSONL log
+    # Append JSONL log with newline
     with open(LOG_PATH, 'a') as f:
         f.write(json.dumps(record) + '
 ')
@@ -43,10 +43,11 @@ class UDPProtocol(asyncio.DatagramProtocol):
             'ip_proto': 'udp',
             'dst_port': local[1]
         }
+        # Append JSONL log with newline
         with open(LOG_PATH, 'a') as f:
             f.write(json.dumps(record) + '
 ')
-        # Send dummy response
+        # Send dummy null-byte response
         self.transport.sendto(b'�', addr)
 
 async def main():
@@ -58,7 +59,7 @@ async def main():
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
     loop = asyncio.get_running_loop()
 
-    # Start TCP servers
+    # Bind TCP servers
     for port in PORT_RANGE:
         if port in SKIP_PORTS:
             continue
@@ -69,7 +70,7 @@ async def main():
                 continue
             raise
 
-    # Start UDP endpoints
+    # Bind UDP endpoints
     for port in PORT_RANGE:
         if port in SKIP_PORTS:
             continue
