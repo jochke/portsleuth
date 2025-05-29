@@ -4,6 +4,7 @@ import os
 import resource
 import errno
 import signal
+import sys
 from datetime import datetime, timezone
 
 # Configuration
@@ -26,6 +27,7 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
     # Append JSONL log with newline
     with open(LOG_PATH, 'a') as f:
         f.write(json.dumps(record) + '\n')
+    print(f"TCP connection from {peer[0]}:{peer[1]} to port {sock[1]}")
     writer.close()
     await writer.wait_closed()
 
@@ -46,10 +48,13 @@ class UDPProtocol(asyncio.DatagramProtocol):
         # Append JSONL log with newline
         with open(LOG_PATH, 'a') as f:
             f.write(json.dumps(record) + '\n')
+        print(f"UDP packet from {addr[0]}:{addr[1]} to port {local[1]}")
         # Send dummy null-byte response
         self.transport.sendto(b'\x00', addr)
 
 async def main():
+    print(f"Starting PortSleuth Sentinel, logging to {LOG_PATH}")
+    
     # Setup shutdown handler
     loop = asyncio.get_running_loop()
     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
@@ -59,6 +64,7 @@ async def main():
     # Increase file descriptor limit
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (min(hard, FD_LIMIT), hard))
+    print(f"File descriptor limit set to {min(hard, FD_LIMIT)}")
 
     # Ensure log directory exists
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
@@ -66,6 +72,8 @@ async def main():
     # Track servers for clean shutdown
     tcp_servers = []
     udp_transports = []
+    tcp_count = 0
+    udp_count = 0
 
     # Bind TCP servers
     for port in PORT_RANGE:
@@ -74,6 +82,7 @@ async def main():
         try:
             server = await asyncio.start_server(handle_tcp, '0.0.0.0', port)
             tcp_servers.append(server)
+            tcp_count += 1
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
                 continue
@@ -89,11 +98,15 @@ async def main():
                 local_addr=('0.0.0.0', port)
             )
             udp_transports.append(transport)
+            udp_count += 1
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
                 continue
             raise
 
+    print(f"Listening on {tcp_count} TCP ports and {udp_count} UDP ports")
+    print("PortSleuth Sentinel is running. Press Ctrl+C to stop.")
+    
     # Store servers for shutdown
     loop.servers = tcp_servers
     loop.transports = udp_transports
@@ -103,6 +116,7 @@ async def main():
 
 async def shutdown(sig):
     """Cleanup resources and shutdown"""
+    print(f"Shutting down PortSleuth Sentinel (signal: {sig})...")
     loop = asyncio.get_running_loop()
     
     # Close TCP servers
@@ -114,7 +128,12 @@ async def shutdown(sig):
     for transport in getattr(loop, 'transports', []):
         transport.close()
     
+    print("Shutdown complete.")
     loop.stop()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Interrupted by user")
+        sys.exit(0)
