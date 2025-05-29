@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  sentinel:
+    image: ghcr.io/your-org/portsleuth-sentinel:latest
+    container_name: portsleuth-sentinel
+    restart: unless-stopped
+    volumes:
+      - sentinel-logs:/var/log/portsleuth:rw
+    ports:
+      - '1-65535:1-65535/udp'
+      - '1-65535:1-65535/tcp'
+
+  probe:
+    image: ghcr.io/your-org/portsleuth-probe:latest
+    container_name: portsleuth-probe
+    depends_on:
+      - sentinel
+    volumes:
+      - ./expected_rules.yml:/data/expected_rules.yml:ro
+      - probe-logs:/var/log/portsleuth:rw
+    command: ['-c', '/data/expected_rules.yml']
+
+volumes:
+  sentinel-logs:
+  probe-logs:
