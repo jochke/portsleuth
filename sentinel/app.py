@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 
 # Configuration
-LOG_PATH = '/var/log/portsleuth/sentinel.json'
+LOG_PATH = '/var/log/portsleuth/sentinel.jsonl'  # Changed extension to jsonl
 SKIP_PORTS = {22}               # Ports to skip (e.g., SSH)
 PORT_RANGE = range(1, 1025)     # Listen on ports 1–1024
 FD_LIMIT = 5000                 # Max file descriptors to request
@@ -27,7 +27,10 @@ async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter)
     # Append JSONL log with newline
     with open(LOG_PATH, 'a') as f:
         f.write(json.dumps(record) + '\n')
-    print(f"TCP connection from {peer[0]}:{peer[1]} to port {sock[1]}")
+    
+    # Live console output
+    print(f"[{ts}] TCP | {peer[0]}:{peer[1]} → {sock[1]} | Connection received")
+    
     writer.close()
     await writer.wait_closed()
 
@@ -48,7 +51,10 @@ class UDPProtocol(asyncio.DatagramProtocol):
         # Append JSONL log with newline
         with open(LOG_PATH, 'a') as f:
             f.write(json.dumps(record) + '\n')
-        print(f"UDP packet from {addr[0]}:{addr[1]} to port {local[1]}")
+        
+        # Live console output
+        print(f"[{ts}] UDP | {addr[0]}:{addr[1]} → {local[1]} | Packet received, responding")
+        
         # Send dummy null-byte response
         self.transport.sendto(b'\x00', addr)
 
@@ -106,6 +112,7 @@ async def main():
 
     print(f"Listening on {tcp_count} TCP ports and {udp_count} UDP ports")
     print("PortSleuth Sentinel is running. Press Ctrl+C to stop.")
+    print("-" * 70)
     
     # Store servers for shutdown
     loop.servers = tcp_servers
