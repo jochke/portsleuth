@@ -1,0 +1,25 @@
+# /expected_rules.yml
+# PortSleuth Probe test-plan template
+
+# ——————————————————————————————————————————  
+# Example rule #1: SSH and HTTP should be open  
+# from 192.168.1.0/24 → 203.0.113.10
+# ——————————————————————————————————————————
+- src_cidr: "10.143.4.3/26"
+  dst_cidr: "10.143.4.2/32"
+  protocol: "tcp"          # tcp or udp
+  ports:
+    - 22                   # SSH
+    - 80                   # HTTP
+    - 443                  # HTTPS
+
+# ——————————————————————————————————————————  
+# Example rule #2: DNS and NTP via UDP  
+# from any source → 203.0.113.20  
+# ——————————————————————————————————————————
+- src_cidr: "0.0.0.0/0"
+  dst_cidr: "203.0.113.20/32"
+  protocol: "udp"
+  ports:
+    - 53                   # DNS
+    - 123                  # NTP
