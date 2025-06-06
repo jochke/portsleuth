@@ -2,24 +2,29 @@
 # PortSleuth Probe test-plan template
 
 # ——————————————————————————————————————————  
-# Example rule #1: SSH and HTTP should be open  
-# from 192.168.1.0/24 → 203.0.113.10
+# From: Storage Gateways 10.143.6.160/27
+# To: DC services 10.143.6.128/27
 # ——————————————————————————————————————————
-- src_cidr: "10.143.4.3/26"
-  dst_cidr: "10.143.4.2/32"
+- src_cidr: "10.143.6.160/27"
+  dst_cidr: "10.143.6.128/27"
   protocol: "tcp"          # tcp or udp
   ports:
-    - 22                   # SSH
-    - 80                   # HTTP
-    - 443                  # HTTPS
+    - 88
+    - 389
+    - 636
+    - 53
+    - 445
+    - 135
 
 # ——————————————————————————————————————————  
-# Example rule #2: DNS and NTP via UDP  
-# from any source → 203.0.113.20  
+# From: Storage Gateways 10.143.6.160/27
+# To: DC services 10.143.6.128/27
 # ——————————————————————————————————————————
-- src_cidr: "0.0.0.0/0"
-  dst_cidr: "203.0.113.20/32"
-  protocol: "udp"
+- src_cidr: "10.143.6.160/27"
+  dst_cidr: "10.143.6.128/27"
+  protocol: "udp"          # tcp or udp
   ports:
-    - 53                   # DNS
-    - 123                  # NTP
+    - 88
+    - 389
+    - 53
+    - 123
