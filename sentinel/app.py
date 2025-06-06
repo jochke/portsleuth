@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 # Configuration
 LOG_PATH = '/var/log/portsleuth/sentinel.json'  # Changed extension to json
 SKIP_PORTS = {22}               # Ports to skip (e.g., SSH)
-PORT_RANGE = range(80,85)     # Listen on ports 1–1024
+PORT_RANGE = range(1,1024)     # Listen on ports 1–1024
 FD_LIMIT = 5000                 # Max file descriptors to request
 
 async def handle_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
