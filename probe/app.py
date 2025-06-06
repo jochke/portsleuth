@@ -30,22 +30,31 @@ def run_scan(target, scan_args):
     return hosts, nm
 
 def compare(rule, hosts, nm):
+    """Return a dict with:
+       - expected_open: set of ports the plan said should be open
+       - actual_open:   set of ports nmap actually saw open
+       - open_mismatches:       expected_open - actual_open
+       - closed_mismatches:     actual_open - expected_open
+    """
     proto = rule['protocol']
     expected = set(rule['ports'])
-    mismatches = {
-        'open_mismatches': [],
-        'closed_mismatches': []
-    }
+    actual_open = set()
+
+    # If nmap returned no info for this protocol, treat all as closed
     for host in hosts:
         try:
             states = nm[host][proto]
         except KeyError:
-            # If nmap returned no info for this protocol, treat all as closed
             states = {}
-        actual_open = {p for p, s in states.items() if s['state'] == 'open'}
-        mismatches['open_mismatches'] = sorted(expected - actual_open)
-        mismatches['closed_mismatches'] = sorted(actual_open - expected)
-    return mismatches
+        # collect all ports that nmap says "open"
+        actual_open |= {p for p, s in states.items() if s['state'] == 'open'}
+
+    return {
+        'expected_open':      expected,
+        'actual_open':        actual_open,
+        'open_mismatches':    sorted(expected - actual_open),
+        'closed_mismatches':  sorted(actual_open - expected),
+    }
 
 def log_record(rec):
     with open(LOG_PATH, 'a') as f:
@@ -72,7 +81,7 @@ def main():
     p.add_argument(
         '--targets', '-t',
         required=True,
-        help="Comma-separated list of one or more target IPs or CIDRs (e.g. 203.0.113.10,203.0.113.20)"
+        help="Comma-separated list of one or more target IPs or CIDRs"
     )
     p.add_argument(
         '--scan-opts', '-s',
@@ -82,8 +91,6 @@ def main():
 
     args = p.parse_args()
 
-    # Load the YAML plan (but note: in this example we ignore the plan's src_cidr,
-    # since nmap is running from whatever machine you're on; we just scan dst_cidr)
     plan = load_plan(args.plan)
     ensure_logfile(LOG_PATH)
 
@@ -96,41 +103,48 @@ def main():
     overall_ok = True
 
     for rule in plan:
-        # The rule’s dst_cidr must be one of the IPs in --targets
         dst = rule.get('dst_cidr')
         if dst not in target_list:
-            # If the rule’s dst_cidr isn't in our --targets list, skip it.
             continue
 
         proto = rule['protocol'].lower()
         ts = ts_utc()
 
-        # Run nmap against exactly that one host/CIDR
         hosts, nm = run_scan(dst, args.scan_opts)
-        mm = compare(rule, hosts, nm)
+        cmp = compare(rule, hosts, nm)
 
+        expected_set = cmp['expected_open']
+        actual_set   = cmp['actual_open']
+        open_mis     = cmp['open_mismatches']
+        closed_mis   = cmp['closed_mismatches']
+        successful   = sorted(expected_set & actual_set)
+
+        # Build the JSON record
         record = {
-            'ts_utc':           ts,
-            'target_ip':        dst,
-            'scan_type':        proto,
-            'expected_open':    len(rule['ports']),
-            'expected_closed':  MAX_PORT - len(rule['ports']),
-            'open_mismatches':  mm['open_mismatches'],
-            'closed_mismatches': mm['closed_mismatches'],
+            'ts_utc':            ts,
+            'target_ip':         dst,
+            'scan_type':         proto,
+            'expected_open':     sorted(expected_set),
+            'successful_open':   successful,
+            'open_mismatches':   open_mis,
+            'closed_mismatches': closed_mis,
         }
         log_record(record)
 
-        ok = not mm['open_mismatches'] and not mm['closed_mismatches']
+        ok = not open_mis and not closed_mis
         overall_ok &= ok
 
         header = f"[{'PASS' if ok else 'FAIL'}] {ts} → {dst} ({proto.upper()})"
         colorised_print(ok, header)
 
-        if not ok:
-            if mm['open_mismatches']:
-                print(f"  • Expected open but not seen: {mm['open_mismatches']}")
-            if mm['closed_mismatches']:
-                print(f"  • Unexpected open ports: {mm['closed_mismatches']}")
+        # Always print what was expected vs what was actually open
+        print(f"  • Expected open ports: {sorted(expected_set)}")
+        print(f"  • Successfully seen open: {successful}")
+
+        if open_mis:
+            print(f"  • Expected but not seen open: {open_mis}")
+        if closed_mis:
+            print(f"  • Unexpected open ports: {closed_mis}")
 
     sys.exit(0 if overall_ok else 2)
 
